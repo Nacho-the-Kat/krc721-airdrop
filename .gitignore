@@ -20,9 +20,11 @@ npm-debug.log*
 .vscode/
 *.swp
 *.swo
+package-lock.json
 
 # Test files
 examples/test_nft_transfers.csv
+krc20Transfer (1).ts
 
 # OS files
 .DS_Store
