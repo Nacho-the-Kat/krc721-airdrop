@@ -1,4 +1,4 @@
-# Katdropper - KRC721 NFT Airdrop Tool
+# KRC721 NFT Airdrop Tool
 
 A Node.js tool for bulk airdropping KRC721 NFTs on the Kaspa network.
 
