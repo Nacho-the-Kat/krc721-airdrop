@@ -4,7 +4,7 @@ A Node.js tool for bulk airdropping KRC721 NFTs on the Kaspa network.
 
 ## Overview
 
-Katdropper is a command-line tool that allows you to send KRC721 NFTs to multiple wallet addresses in bulk. It uses a two-step transaction process (commit and reveal) to ensure secure and reliable NFT transfers.
+This is a command-line tool that allows you to send KRC721 NFTs to multiple wallet addresses in bulk. It uses a two-step transaction process (commit and reveal) to ensure secure and reliable NFT transfers.
 
 ## Prerequisites
 
