@@ -108,7 +108,7 @@ The tool will:
 
 The KRC721 transfer script follows this structure:
 ```
-<public_key> OP_CHECKSIG OP_FALSE OP_IF "kasplex" 0 <data> OP_ENDIF
+<public_key> OP_CHECKSIG OP_FALSE OP_IF "kspr" 0 <data> OP_ENDIF
 ```
 
 Where `<data>` is a JSON string:

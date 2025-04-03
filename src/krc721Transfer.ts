@@ -105,7 +105,7 @@ export async function transferKRC721(
     .addOp(Opcodes.OpCheckSig)
     .addOp(Opcodes.OpFalse)
     .addOp(Opcodes.OpIf)
-    .addData(Buffer.from("kasplex"))
+    .addData(Buffer.from("kspr"))
     .addI64(0n)
     .addData(Buffer.from(JSON.stringify(data, null, 0)))
     .addOp(Opcodes.OpEndIf);
