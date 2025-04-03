@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+wasm/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+package-lock.json
+
+# Test files
+examples/test_nft_transfers.csv
+krc20Transfer.ts
+
+# OS files
+.DS_Store
+Thumbs.db 
