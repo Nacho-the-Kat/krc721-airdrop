@@ -24,7 +24,7 @@ package-lock.json
 
 # Test files
 examples/test_nft_transfers.csv
-krc20Transfer (1).ts
+krc20Transfer.ts
 
 # OS files
 .DS_Store
