@@ -63,8 +63,6 @@ export async function transferKRC721(
 
   // Setup UTXO change event listener
   rpc.addEventListener('utxos-changed', async (event: any) => {
-    console.log(`UTXO changes detected for address: ${treasuryAddressStr}`);
-    
     const removedEntry = event.data.removed.find((entry: any) => 
       entry.address.payload === treasuryAddressStr.split(':')[1]
     );
@@ -73,16 +71,11 @@ export async function transferKRC721(
     );    
     
     if (removedEntry && addedEntry) {
-      console.log(`Added UTXO found for address: ${treasuryAddressStr}`);
       addedEventTrxId = addedEntry.outpoint.transactionId;
-      console.log(`Added UTXO TransactionId: ${addedEventTrxId}`);
-      
       if (addedEventTrxId === submittedTrxId) {
         eventReceived = true;
         control.stopPolling = true;
       }
-    } else {
-      console.log(`No removed UTXO found for address: ${treasuryAddressStr} in this UTXO change event`);
     }
   });
   
