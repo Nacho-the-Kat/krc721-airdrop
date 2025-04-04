@@ -48,8 +48,9 @@ export async function transferKRC721(
 ): Promise<{ commitTx: string; revealTx: string }> {
   const { walletAddress, tick, id } = transferData;
   let eventReceived = false;
+  let control = { stopPolling: false };
   let addedEventTrxId: any;
-  let SubmittedtrxId: any;
+  let submittedTrxId: any;
   
   // Subscribe to UTXO changes
   console.log(`Subscribing to UTXO changes for address: ${treasuryAddressStr}`);
@@ -64,52 +65,52 @@ export async function transferKRC721(
   rpc.addEventListener('utxos-changed', async (event: any) => {
     console.log(`UTXO changes detected for address: ${treasuryAddressStr}`);
     
-    // Check for UTXOs removed for the specific address
     const removedEntry = event.data.removed.find((entry: any) => 
       entry.address.payload === treasuryAddressStr.split(':')[1]
     );
     const addedEntry = event.data.added.find((entry: any) => 
       entry.address.payload === treasuryAddressStr.split(':')[1]
     );    
+    
     if (removedEntry && addedEntry) {
-      console.log(`Added UTXO found for address: ${treasuryAddressStr} with UTXO: ${JSON.stringify(addedEntry, (key, value) =>
-        typeof value === 'bigint' ? value.toString() + 'n' : value)}`);
-      console.log(`Removed UTXO found for address: ${treasuryAddressStr} with UTXO: ${JSON.stringify(removedEntry, (key, value) =>
-        typeof value === 'bigint' ? value.toString() + 'n' : value)}`);
+      console.log(`Added UTXO found for address: ${treasuryAddressStr}`);
       addedEventTrxId = addedEntry.outpoint.transactionId;
       console.log(`Added UTXO TransactionId: ${addedEventTrxId}`);
-      if (addedEventTrxId == SubmittedtrxId) {
+      
+      if (addedEventTrxId === submittedTrxId) {
         eventReceived = true;
+        control.stopPolling = true;
       }
     } else {
       console.log(`No removed UTXO found for address: ${treasuryAddressStr} in this UTXO change event`);
     }
   });
   
-  // Create the NFT transfer script data - Updated to match KRC20 format exactly
-  const data = {
-    "op": "transfer",
-    "p": "krc-721",
-    "tick": tick.toLowerCase(),
-    "to": walletAddress,
-    "tokenId": id
+  // Create NFT transfer data object - MUST use tokenId, not id
+  const data = { 
+    "p": "krc-721", 
+    "op": "transfer", 
+    "tick": tick.toLowerCase(), 
+    "tokenId": parseInt(id),
+    "to": walletAddress 
   };
-
-  // Create private key object and get public key
+  
+  console.log(`Script data: ${JSON.stringify(data)}`);
+  
+  // Create private key object
   const privateKey = new PrivateKey(treasuryPrivateKeyStr);
-  const publicKey = privateKey.toPublicKey().toXOnlyPublicKey().toString();
-
-  // Create the script for KRC721 transfer - Updated to match KRC20 format exactly
+  
+  // Create the script for KRC721 transfer - key difference is "kspr" instead of "kasplex"
   const script = new ScriptBuilder()
-    .addData(publicKey)
+    .addData(privateKey.toPublicKey().toXOnlyPublicKey().toString())
     .addOp(Opcodes.OpCheckSig)
     .addOp(Opcodes.OpFalse)
     .addOp(Opcodes.OpIf)
-    .addData(Buffer.from("kspr"))
+    .addData(Buffer.from("kspr"))  // This is the key difference from KRC20
     .addI64(0n)
-    .addData(Buffer.from(JSON.stringify(data, null, 0)))
+    .addData(Buffer.from(JSON.stringify(data)))
     .addOp(Opcodes.OpEndIf);
-
+  
   const P2SHAddress = addressFromScriptPublicKey(script.createPayToScriptHashScript(), network)!;
   console.log(`P2SH Address: ${P2SHAddress.toString()}`);
   
@@ -123,24 +124,24 @@ export async function transferKRC721(
     // Find a suitable UTXO
     const selectedUtxo = findSuitableUtxo(entries);
     if (!selectedUtxo) {
-      throw new Error(`No suitable UTXO found. Each transfer requires at least ${sompiToKaspa(ABSOLUTE_MIN_UTXO)} KAS. Total balance: ${sompiToKaspa(totalBalance)} KAS`);
+      throw new Error(`No suitable UTXO found. Each transfer requires at least ${sompiToKaspa(ABSOLUTE_MIN_UTXO)} KAS.`);
     }
 
     let utxoAmount = BigInt(selectedUtxo.entry.amount);
     console.log(`Selected UTXO with amount: ${sompiToKaspa(utxoAmount)} KAS`);
 
-    // Adjust utxoAmount if only one entry
+    // Adjust utxoAmount if only one entry to account for fees
     if (entries.length === 1) {
-      utxoAmount = utxoAmount - (3n * BigInt(feeInSompi)!);
+      utxoAmount = utxoAmount - (3n * BigInt(feeInSompi));
     }
 
     // Create commit transaction
-    const { transactions: commitTransactions } = await createTransactions({
+    const { transactions } = await createTransactions({
       priorityEntries: [selectedUtxo],
       entries: entries.filter(e => e !== selectedUtxo),
       outputs: [{
         address: P2SHAddress.toString(),
-        amount: PREFERRED_MIN_UTXO // Send PREFERRED_MIN_UTXO
+        amount: PREFERRED_MIN_UTXO
       }],
       changeAddress: treasuryAddressStr,
       priorityFee: feeInSompi,
@@ -148,93 +149,108 @@ export async function transferKRC721(
     });
 
     // Sign and submit commit transaction
-    const commitTx = commitTransactions[0];
+    const commitTx = transactions[0];
     commitTx.sign([privateKey]);
     
-    // Do NOT add the P2SH script to the commit transaction
-    // The commit transaction should NOT include the script
     const commitHash = await commitTx.submit(rpc);
     console.log(`Submitted commit transaction: ${commitHash}`);
-    SubmittedtrxId = commitHash;
+    submittedTrxId = commitHash;
 
-    // Set a timeout to handle failure cases
+    // Setup timeout for commit transaction
     const commitTimeout = setTimeout(() => {
       if (!eventReceived) {
-        throw new Error('Timeout - Commit transaction did not mature within 3 minutes');
+        console.error('Timeout - Commit transaction did not mature within 3 minutes');
+        eventReceived = true;
       }
     }, timeout);
 
     // Wait until the maturity event has been received
-    while (!eventReceived) {
-      await new Promise(resolve => setTimeout(resolve, 500)); // wait and check every 500ms
+    while (!eventReceived && !control.stopPolling) {
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     clearTimeout(commitTimeout);
 
     // Reset event received flag for reveal transaction
     eventReceived = false;
+    control.stopPolling = false;
+    
+    // Wait a bit for the commit transaction to fully mature
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Get updated entries for reveal transaction
-    const { entries: updatedEntries } = await rpc.getUtxosByAddresses([treasuryAddressStr]);
-    console.log(`Creating revealUTXOs from P2SHAddress`);
+    console.log(`Creating revealUTXOs from P2SHAddress: ${P2SHAddress.toString()}`);
     const revealUTXOs = await rpc.getUtxosByAddresses([P2SHAddress.toString()]);
-    console.log(`Creating Transaction with revealUTX0s entries: ${revealUTXOs.entries[0]}`);
+    
+    if (!revealUTXOs.entries || revealUTXOs.entries.length === 0) {
+      throw new Error(`No UTXOs found at P2SH address: ${P2SHAddress.toString()}`);
+    }
+    
+    console.log(`Found ${revealUTXOs.entries.length} UTXOs at P2SH address`);
 
-    // Second transaction: Send funds to recipient
+    // Second transaction: Return minimal amount to recipient, rest back to treasury
     const revealUtxoAmount = BigInt(revealUTXOs.entries[0].entry.amount);
+    console.log(`Reveal UTXO amount: ${sompiToKaspa(revealUtxoAmount)} KAS`);
 
-    const { transactions } = await createTransactions({
+    // Get fresh treasury UTXOs for the reveal transaction
+    const { entries: treasuryEntries } = await rpc.getUtxosByAddresses([treasuryAddressStr]);
+
+    // Calculate output amounts - small amount to recipient, rest back to treasury
+    const minAmountToRecipient = BigInt(kaspaToSompi('0.0001')!);
+    const remainingAmount = revealUtxoAmount - minAmountToRecipient - BigInt(feeInSompi);
+    
+    const outputs = [
+      {
+        address: walletAddress,
+        amount: minAmountToRecipient
+      }
+    ];
+    
+    if (remainingAmount > 0) {
+      outputs.push({
+        address: treasuryAddressStr,
+        amount: remainingAmount
+      });
+    }
+
+    const { transactions: revealTransactions } = await createTransactions({
       priorityEntries: [revealUTXOs.entries[0]],
-      entries: [], // Empty entries array to ensure only 1 input
-      outputs: [{
-        address: walletAddress, // Send to recipient
-        amount: revealUtxoAmount - BigInt(feeInSompi) // Return everything except fee
-      }],
+      entries: treasuryEntries,
+      outputs: outputs,
       changeAddress: treasuryAddressStr,
       priorityFee: feeInSompi,
       networkId: network
     });
-
+  
     // Sign and submit reveal transaction
-    const revealTx = transactions[0];
+    const revealTx = revealTransactions[0];
     revealTx.sign([privateKey], false);
     
-    // Add the P2SH script to the reveal transaction - This is where the script should be
-    const signature = await revealTx.createInputSignature(0, privateKey);
-    revealTx.fillInput(0, script.encodePayToScriptHashSignatureScript(signature));
+    // Add the P2SH script to the reveal transaction
+    const inputIndex = revealTx.transaction.inputs.findIndex(input => input.signatureScript === '');
+    if (inputIndex !== -1) {
+      const signature = await revealTx.createInputSignature(inputIndex, privateKey);
+      revealTx.fillInput(inputIndex, script.encodePayToScriptHashSignatureScript(signature));
+    } else {
+      console.error("Could not find unsigned input in reveal transaction");
+    }
     
     const revealHash = await revealTx.submit(rpc);
     console.log(`Submitted reveal transaction: ${revealHash}`);
-    SubmittedtrxId = revealHash;
+    submittedTrxId = revealHash;
 
-    // Set a timeout for reveal transaction
+    // Setup timeout for reveal transaction
     const revealTimeout = setTimeout(() => {
       if (!eventReceived) {
-        throw new Error('Timeout - Reveal transaction did not mature within 3 minutes');
+        console.error('Timeout - Reveal transaction did not mature within 3 minutes');
+        eventReceived = true;
       }
     }, timeout);
 
-    // Wait until the reveal maturity event has been received
-    while (!eventReceived) {
-      await new Promise(resolve => setTimeout(resolve, 500)); // wait and check every 500ms
+    // Wait until the reveal event has been received
+    while (!eventReceived && !control.stopPolling) {
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     clearTimeout(revealTimeout);
-
-    // Verify reveal transaction acceptance
-    try {
-      const updatedUTXOs = await rpc.getUtxosByAddresses([treasuryAddressStr]);
-      const revealAccepted = updatedUTXOs.entries.some(entry => {
-        const transactionId = entry.entry.outpoint ? entry.entry.outpoint.transactionId : undefined;
-        return transactionId === revealHash;
-      });
-
-      if (revealAccepted) {
-        console.log(`Reveal transaction has been accepted: ${revealHash}`);
-      } else if (!eventReceived) {
-        console.log('Reveal transaction has not been accepted yet.');
-      }
-    } catch (error) {
-      console.error(`Error checking reveal transaction status: ${error}`);
-    }
 
     return {
       commitTx: commitHash,
