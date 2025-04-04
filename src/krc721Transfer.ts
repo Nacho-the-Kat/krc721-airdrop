@@ -135,7 +135,7 @@ export async function transferKRC721(
       utxoAmount = utxoAmount - (3n * BigInt(feeInSompi));
     }
 
-    // Create commit transaction
+    // Create commit transaction with a single output
     const { transactions } = await createTransactions({
       priorityEntries: [selectedUtxo],
       entries: entries.filter(e => e !== selectedUtxo),
@@ -144,7 +144,7 @@ export async function transferKRC721(
         amount: PREFERRED_MIN_UTXO
       }],
       changeAddress: treasuryAddressStr,
-      priorityFee: feeInSompi,
+      priorityFee: feeInSompi < BigInt(kaspaToSompi('2.8')!) ? feeInSompi : BigInt(kaspaToSompi('2.7')!),
       networkId: network
     });
 
@@ -187,37 +187,19 @@ export async function transferKRC721(
     
     console.log(`Found ${revealUTXOs.entries.length} UTXOs at P2SH address`);
 
-    // Second transaction: Return minimal amount to recipient, rest back to treasury
+    // Second transaction: Reveal without outputs, only change address
     const revealUtxoAmount = BigInt(revealUTXOs.entries[0].entry.amount);
     console.log(`Reveal UTXO amount: ${sompiToKaspa(revealUtxoAmount)} KAS`);
 
     // Get fresh treasury UTXOs for the reveal transaction
     const { entries: treasuryEntries } = await rpc.getUtxosByAddresses([treasuryAddressStr]);
 
-    // Calculate output amounts - small amount to recipient, rest back to treasury
-    const minAmountToRecipient = BigInt(kaspaToSompi('0.0001')!);
-    const remainingAmount = revealUtxoAmount - minAmountToRecipient - BigInt(feeInSompi);
-    
-    const outputs = [
-      {
-        address: walletAddress,
-        amount: minAmountToRecipient
-      }
-    ];
-    
-    if (remainingAmount > 0) {
-      outputs.push({
-        address: treasuryAddressStr,
-        amount: remainingAmount
-      });
-    }
-
     const { transactions: revealTransactions } = await createTransactions({
       priorityEntries: [revealUTXOs.entries[0]],
       entries: treasuryEntries,
-      outputs: outputs,
+      outputs: [], // No outputs, only change address
       changeAddress: treasuryAddressStr,
-      priorityFee: feeInSompi,
+      priorityFee: feeInSompi < BigInt(kaspaToSompi('2.8')!) ? feeInSompi : BigInt(kaspaToSompi('2.7')!),
       networkId: network
     });
   
