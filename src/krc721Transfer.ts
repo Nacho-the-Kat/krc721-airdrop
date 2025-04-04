@@ -79,12 +79,12 @@ export async function transferKRC721(
     }
   });
   
-  // Create NFT transfer data object - MUST use tokenId, not id
+  // Create NFT transfer data object - MUST use tokenId as a string
   const data = { 
     "p": "krc-721", 
     "op": "transfer", 
     "tick": tick.toLowerCase(), 
-    "tokenId": parseInt(id),
+    "tokenId": id.toString(), // Convert tokenId to string
     "to": walletAddress 
   };
   
