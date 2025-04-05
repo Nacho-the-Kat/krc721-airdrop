@@ -25,6 +25,11 @@ package-lock.json
 # Test files
 examples/test_nft_transfers.csv
 krc20Transfer.ts
+finallists/
+run_airdrop_lvl1.sh
+run_airdrop_lvl2.sh
+run_airdrop_lvl3.sh
+run_airdrop_lvl4.sh
 
 # OS files
 .DS_Store
