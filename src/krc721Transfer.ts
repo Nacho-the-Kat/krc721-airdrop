@@ -8,7 +8,7 @@ config();
 const network = process.env.NETWORK || 'mainnet';
 const FIXED_FEE = '0.0001'; // Fixed minimal fee in KAS
 const feeInSompi = kaspaToSompi(FIXED_FEE)!;
-const timeout = 180000; // 3 minutes timeout
+const timeout = 60000; // 1 minute timeout
 
 // UTXO selection thresholds in sompi (1 KAS = 100_000_000 sompi)
 const PREFERRED_MIN_UTXO = BigInt(kaspaToSompi('5')!); // 5 KAS
