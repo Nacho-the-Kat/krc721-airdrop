@@ -8,7 +8,7 @@ config();
 const network = process.env.NETWORK || 'mainnet';
 const FIXED_FEE = '0.0001'; // Fixed minimal fee in KAS
 const feeInSompi = kaspaToSompi(FIXED_FEE)!;
-const timeout = 60000; // 1 minute timeout
+const timeout = 30000; // 30 second timeout
 
 // UTXO selection thresholds in sompi (1 KAS = 100_000_000 sompi)
 const PREFERRED_MIN_UTXO = BigInt(kaspaToSompi('5')!); // 5 KAS
@@ -175,7 +175,7 @@ export async function transferKRC721(
     // Setup timeout for commit transaction
     const commitTimeout = setTimeout(() => {
       if (!eventReceived) {
-        console.error('Timeout - Commit transaction did not mature within 3 minutes');
+        console.error('Timeout - Commit transaction did not mature within 30 seconds');
         eventReceived = true;
       }
     }, timeout);
@@ -253,7 +253,7 @@ export async function transferKRC721(
     // Setup timeout for reveal transaction
     const revealTimeout = setTimeout(() => {
       if (!eventReceived) {
-        console.error('Timeout - Reveal transaction did not mature within 3 minutes');
+        console.error('Timeout - Reveal transaction did not mature within 30 seconds');
         eventReceived = true;
       }
     }, timeout);
