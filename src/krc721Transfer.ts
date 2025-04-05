@@ -320,7 +320,7 @@ export async function processNFTTransfers(
       
       // Add a delay between transactions to prevent UTXO conflicts
       if (i < transferList.length - 1) {
-        const delaySeconds = 10; // 10 seconds delay between transactions
+        const delaySeconds = 5; // 5 seconds delay between transactions
         console.log(`Waiting ${delaySeconds} seconds before processing next transfer...`);
         await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
       }
