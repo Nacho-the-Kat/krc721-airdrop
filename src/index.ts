@@ -22,10 +22,23 @@ async function main() {
             networkId: network
         });
         
-        // Disconnect and reconnect to ensure a clean connection
-        await rpcClient.disconnect();
-        await rpcClient.connect();
-        console.log('RPC connection established');
+        // Set a timeout for the initial connection
+        const connectionTimeout = setTimeout(() => {
+            console.error('Timeout - Failed to establish RPC connection within 30 seconds');
+            process.exit(1);
+        }, 30000);
+
+        try {
+            // Disconnect and reconnect to ensure a clean connection
+            await rpcClient.disconnect();
+            await rpcClient.connect();
+            clearTimeout(connectionTimeout);
+            console.log('RPC connection established');
+        } catch (error) {
+            clearTimeout(connectionTimeout);
+            console.error('Failed to establish RPC connection:', error);
+            process.exit(1);
+        }
         
         // Process input file
         const inputFilePath = process.argv[2];

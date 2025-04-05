@@ -40,6 +40,24 @@ function sompiToKaspa(sompi: bigint): string {
   return (Number(sompi) / 100_000_000).toFixed(8);
 }
 
+// Helper function to check and reconnect RPC connection
+async function ensureRpcConnection(rpc: RpcClient): Promise<void> {
+  try {
+    // Try a simple RPC call to check connection
+    await rpc.getInfo();
+  } catch (error) {
+    console.log('RPC connection lost, attempting to reconnect...');
+    try {
+      // Reconnect by reinitializing the connection
+      await rpc.connect();
+      console.log('RPC connection reestablished');
+    } catch (reconnectError) {
+      console.error('Failed to reconnect to RPC:', reconnectError);
+      throw reconnectError;
+    }
+  }
+}
+
 export async function transferKRC721(
   rpc: RpcClient,
   treasuryPrivateKeyStr: string,
@@ -52,13 +70,18 @@ export async function transferKRC721(
   let addedEventTrxId: any;
   let submittedTrxId: any;
   
+  // Check and ensure RPC connection before starting
+  await ensureRpcConnection(rpc);
+  
   // Subscribe to UTXO changes
   console.log(`Subscribing to UTXO changes for address: ${treasuryAddressStr}`);
   try {
     await rpc.subscribeUtxosChanged([treasuryAddressStr]);
   } catch (error) {
     console.error(`Failed to subscribe to UTXO changes: ${error}`);
-    throw error;
+    // Try to reconnect and retry once
+    await ensureRpcConnection(rpc);
+    await rpc.subscribeUtxosChanged([treasuryAddressStr]);
   }
 
   // Setup UTXO change event listener
@@ -159,9 +182,23 @@ export async function transferKRC721(
 
     // Wait until the maturity event has been received
     while (!eventReceived && !control.stopPolling) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Check connection periodically
+        await ensureRpcConnection(rpc);
+      } catch (error) {
+        console.error('Error during event wait:', error);
+        // If connection is lost, wait a bit longer and try to reconnect
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await ensureRpcConnection(rpc);
+      }
     }
     clearTimeout(commitTimeout);
+
+    // If we timed out, log a warning but continue
+    if (!eventReceived) {
+      console.warn('Warning: Commit transaction event not received, but continuing with reveal transaction');
+    }
 
     // Reset event received flag for reveal transaction
     eventReceived = false;
@@ -223,9 +260,23 @@ export async function transferKRC721(
 
     // Wait until the reveal event has been received
     while (!eventReceived && !control.stopPolling) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Check connection periodically
+        await ensureRpcConnection(rpc);
+      } catch (error) {
+        console.error('Error during reveal event wait:', error);
+        // If connection is lost, wait a bit longer and try to reconnect
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await ensureRpcConnection(rpc);
+      }
     }
     clearTimeout(revealTimeout);
+
+    // If we timed out, log a warning but continue
+    if (!eventReceived) {
+      console.warn('Warning: Reveal transaction event not received, but continuing with next transfer');
+    }
 
     return {
       commitTx: commitHash,

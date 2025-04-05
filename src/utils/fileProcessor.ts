@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { parse as csvParse } from 'csv-parse/sync';
+import process from 'process';
 
 interface NFTTransferData {
   walletAddress: string;
@@ -64,11 +65,20 @@ function validateTransferData(data: any[]): asserts data is any[] {
       );
     }
 
-    // Validate wallet address format (basic check)
-    if (!item.walletAddress.startsWith('kaspa:')) {
-      throw new Error(
-        `Invalid Kaspa address format at index ${index}: ${item.walletAddress}`
-      );
+    // Validate wallet address format based on the network
+    const network = process.env.NETWORK || 'mainnet';
+    if (network === 'testnet-10') {
+      if (!item.walletAddress.startsWith('kaspatest:')) {
+        throw new Error(
+          `Invalid Kaspa testnet address format at index ${index}: ${item.walletAddress}`
+        );
+      }
+    } else {
+      if (!item.walletAddress.startsWith('kaspa:')) {
+        throw new Error(
+          `Invalid Kaspa address format at index ${index}: ${item.walletAddress}`
+        );
+      }
     }
 
     // Validate tick format (basic check)

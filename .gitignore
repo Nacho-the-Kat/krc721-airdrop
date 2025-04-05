@@ -30,8 +30,10 @@ run_airdrop_lvl1.sh
 run_airdrop_lvl2.sh
 run_airdrop_lvl3.sh
 run_airdrop_lvl4.sh
+run_mainnet_test.sh
 
 # OS files
 .DS_Store
 Thumbs.db 
 operation.rs
+.env.testnet
